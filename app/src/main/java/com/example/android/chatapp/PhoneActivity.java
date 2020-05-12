@@ -1,8 +1,5 @@
 package com.example.android.chatapp;
 
-import androidx.annotation.NonNull;
-import androidx.appcompat.app.AppCompatActivity;
-
 import android.content.Intent;
 import android.os.Bundle;
 import android.util.Log;
@@ -10,6 +7,9 @@ import android.view.View;
 import android.widget.Button;
 import android.widget.EditText;
 import android.widget.Toast;
+
+import androidx.annotation.NonNull;
+import androidx.appcompat.app.AppCompatActivity;
 
 import com.google.android.gms.tasks.OnCompleteListener;
 import com.google.android.gms.tasks.Task;
@@ -21,62 +21,75 @@ import com.google.firebase.auth.PhoneAuthProvider;
 
 import java.util.concurrent.TimeUnit;
 
-public class PhoneActivity extends AppCompatActivity {
+public class PhoneActivity  extends AppCompatActivity {
 
-    private EditText editText;
-    private Button button;
-    private PhoneAuthProvider.OnVerificationStateChangedCallbacks callbacks;
+    private EditText phoneNumberEditText;
+    private Button register;
+    private String phoneNumber;
+
+    PhoneAuthProvider.OnVerificationStateChangedCallbacks callbacks;
+    private String LOG_TAG = PhoneActivity.class.getSimpleName();
+    private String verificationId;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_phone);
-        editText = findViewById(R.id.editPhone);
+        phoneNumberEditText = findViewById(R.id.phoneEditText);
+        register = findViewById(R.id.register);
         callbacks = new PhoneAuthProvider.OnVerificationStateChangedCallbacks() {
             @Override
-            public void onVerificationCompleted(PhoneAuthCredential phoneAuthCredential) {
-                Log.e("Phone","onVerificationCompleted");
+            public void onVerificationCompleted(@NonNull PhoneAuthCredential phoneAuthCredential) {
                 signIn(phoneAuthCredential);
             }
 
             @Override
-            public void onVerificationFailed(FirebaseException e) {
-                Log.e("Phone","onVerificationFailed");
-
+            public void onVerificationFailed(@NonNull FirebaseException e) {
+                Toast.makeText(getApplicationContext(), e.getMessage(), Toast.LENGTH_LONG).show();
             }
 
             @Override
-            public void onCodeSent(String s, PhoneAuthProvider.ForceResendingToken forceResendingToken) {
+            public void onCodeSent(@NonNull String s, @NonNull PhoneAuthProvider.ForceResendingToken forceResendingToken) {
                 super.onCodeSent(s, forceResendingToken);
-                Log.e("Phone","onCodeSent");
-
-            }
-
-            @Override
-            public void onCodeAutoRetrievalTimeOut(String s) {
-                super.onCodeAutoRetrievalTimeOut(s);
+                verificationId = s;
             }
         };
+        register.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                onSendCode();
+                Log.e(LOG_TAG, "Code has been send");
+            }
+        });
     }
 
-    public void onClickStart(View view) {
-        String phone = editText.getText().toString().trim();
-        PhoneAuthProvider.getInstance().verifyPhoneNumber(phone,60, TimeUnit.SECONDS,this,callbacks);
+    private void signIn(PhoneAuthCredential phoneAuthCredential) {
+        FirebaseAuth.getInstance().signInWithCredential(phoneAuthCredential).addOnCompleteListener(new OnCompleteListener<AuthResult>() {
+            @Override
+            public void onComplete(@NonNull Task<AuthResult> task) {
+                if (task.isSuccessful()) {
+                    Intent intent = new Intent(PhoneActivity.this, ProfileActivity.class);
+                    intent.putExtra("number", phoneNumber);
+                    startActivity(intent);
+                    finish();
+                } else {
+                    Toast.makeText(getApplicationContext(),
+                            "Authentication failed!" + task.getException().getMessage(),
+                            Toast.LENGTH_SHORT).show();
+                }
+            }
+        });
     }
 
-    private void signIn(PhoneAuthCredential phoneAuthCredential){
-        FirebaseAuth.getInstance().signInWithCredential(phoneAuthCredential)
-                .addOnCompleteListener(new OnCompleteListener<AuthResult>() {
-                    @Override
-                    public void onComplete(@NonNull Task<AuthResult> task) {
-                        if(task.isSuccessful()){
-                            startActivity(new Intent(PhoneActivity.this,ProfileActivity.class));
-                            finish();
-                        }else {
-                            Toast.makeText(PhoneActivity.this,"Error of autorization" + task.getException()
-                            .getMessage(),Toast.LENGTH_SHORT).show();
-                        }
-                    }
-                });
+    public void onSendCode() {
+        phoneNumber = phoneNumberEditText.getText().toString().trim();
+        PhoneAuthProvider.getInstance().verifyPhoneNumber(phoneNumber,
+                60, TimeUnit.SECONDS, this, callbacks);
+    }
+
+    public void onCheckCode() {
+        String code = phoneNumberEditText.getText().toString().trim();
+        PhoneAuthCredential credential = PhoneAuthProvider.getCredential(verificationId, code);
+        signIn(credential);
     }
 }
